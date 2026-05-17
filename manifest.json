@@ -2,21 +2,21 @@
   "name": "PET Saúde Digital",
   "short_name": "PET Saúde",
   "description": "Gestão de Participantes do PET Saúde Digital",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "/pet-saude-acompanhamento-usuarios/index.html",
+  "scope": "/pet-saude-acompanhamento-usuarios/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f0f4ff",
   "theme_color": "#2563EB",
   "icons": [
     {
-      "src": "./icon-192.png",
+      "src": "/pet-saude-acompanhamento-usuarios/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./icon-512.png",
+      "src": "/pet-saude-acompanhamento-usuarios/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
