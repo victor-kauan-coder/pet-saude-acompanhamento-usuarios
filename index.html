@@ -2506,24 +2506,102 @@
           </button>
         </div>
         <div class="modal-body">
+          <!-- ── Arquivo de configuração ───────────────────────────────────────── -->
           <div
+            class="settings-section"
             style="
-              background: var(--blue-l);
-              border: 1px solid var(--blue-m);
-              border-radius: 12px;
-              padding: 14px;
-              margin-bottom: 18px;
-              font-size: 13px;
-              color: var(--blue);
-              line-height: 1.6;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
             "
           >
-            <strong>Como configurar:</strong> Cole aqui as credenciais do seu
-            projeto Firebase (encontradas em Configurações do Projeto → Seus
-            apps → SDK). Os dados serão sincronizados em tempo real entre todos
-            os dispositivos.
+            <span>Arquivo de Configuração</span>
+            <button
+              class="btn btn-secondary btn-sm"
+              onclick="exportConfigFile()"
+              style="margin: 0"
+            >
+              <svg
+                width="13"
+                height="13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                viewBox="0 0 24 24"
+              >
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Exportar config
+            </button>
           </div>
+          <div
+            style="
+              background: var(--surface2);
+              border: 1.5px dashed var(--border2);
+              border-radius: 12px;
+              padding: 20px 16px;
+              text-align: center;
+              cursor: pointer;
+              margin-bottom: 8px;
+              transition: border-color 0.15s;
+            "
+            onclick="document.getElementById('configFileInput').click()"
+            ondragover="
+              event.preventDefault();
+              this.style.borderColor = 'var(--blue)';
+            "
+            ondragleave="this.style.borderColor = 'var(--border2)'"
+            ondrop="handleConfigFileDrop(event)"
+          >
+            <svg
+              width="24"
+              height="24"
+              fill="none"
+              stroke="var(--text3)"
+              stroke-width="1.5"
+              viewBox="0 0 24 24"
+              style="margin: 0 auto 8px; display: block"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <div
+              style="
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--text2);
+                margin-bottom: 3px;
+              "
+            >
+              Carregar pet-saude-config.json
+            </div>
+            <div style="font-size: 11.5px; color: var(--text3)">
+              Clique ou arraste o arquivo de configuração aqui
+            </div>
+          </div>
+          <input
+            type="file"
+            id="configFileInput"
+            accept=".json"
+            style="display: none"
+            onchange="handleConfigFileUpload(event)"
+          />
+          <div
+            id="cfg-file-status"
+            style="
+              display: none;
+              font-size: 12.5px;
+              border-radius: 10px;
+              padding: 10px 13px;
+              margin-bottom: 4px;
+            "
+          ></div>
+          <hr />
 
+          <!-- ── Firebase ──────────────────────────────────────────────────────── -->
           <div class="settings-section">Firebase Firestore</div>
           <div class="form-group">
             <label class="form-label">API Key</label>
@@ -2567,7 +2645,6 @@
           >
             Configure as credenciais acima e salve.
           </div>
-
           <div style="display: flex; gap: 8px; margin-top: 14px">
             <button
               class="btn btn-secondary"
@@ -2578,24 +2655,9 @@
             </button>
           </div>
           <hr />
+
+          <!-- ── Google Drive ───────────────────────────────────────────────────── -->
           <div class="settings-section">Google Drive — Upload de Materiais</div>
-          <div
-            style="
-              background: var(--blue-l);
-              border: 1px solid var(--blue-m);
-              border-radius: 12px;
-              padding: 14px;
-              margin-bottom: 14px;
-              font-size: 12.5px;
-              color: var(--blue);
-              line-height: 1.7;
-            "
-          >
-            Cole aqui o <strong>Client ID OAuth2</strong> do seu projeto no
-            Google Cloud Console (APIs &amp; Services → Credentials).
-            Certifique-se de que a <strong>Google Drive API</strong> está ativa
-            e que a origem do seu app está na lista de origens autorizadas.
-          </div>
           <div class="form-group">
             <label class="form-label">Google OAuth2 Client ID</label>
             <input
@@ -2617,6 +2679,8 @@
             />
           </div>
           <hr />
+
+          <!-- ── Oficinas ───────────────────────────────────────────────────────── -->
           <div
             class="settings-section"
             style="
@@ -2636,6 +2700,8 @@
           </div>
           <div id="cfg-workshops-list" style="margin-bottom: 18px"></div>
           <hr />
+
+          <!-- ── Dados ─────────────────────────────────────────────────────────── -->
           <div class="settings-section">Dados</div>
           <div style="display: flex; gap: 8px">
             <button
@@ -3747,6 +3813,114 @@
         };
         reader.readAsText(file);
         e.target.value = "";
+      }
+
+      // ─── ARQUIVO DE CONFIGURAÇÃO ───────────────────────────────────────────────
+      // Estrutura esperada do pet-saude-config.json:
+      // {
+      //   "apiKey": "...",
+      //   "projectId": "...",
+      //   "appId": "...",
+      //   "googleClientId": "...",
+      //   "driveFolderName": "..."   ← opcional
+      // }
+
+      function exportConfigFile() {
+        const cfg = {
+          apiKey: settings.apiKey || "",
+          projectId: settings.projectId || "",
+          appId: settings.appId || "",
+          googleClientId: settings.googleClientId || "",
+          driveFolderName:
+            settings.driveFolderName || "PET Saúde Digital — Materiais",
+        };
+        const blob = new Blob([JSON.stringify(cfg, null, 2)], {
+          type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "pet-saude-config.json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast("Arquivo de configuração exportado.", "success");
+      }
+
+      function handleConfigFileDrop(event) {
+        event.preventDefault();
+        event.currentTarget.style.borderColor = "var(--border2)";
+        const file = event.dataTransfer.files[0];
+        if (!file) return;
+        loadConfigFile(file);
+      }
+
+      function handleConfigFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        loadConfigFile(file);
+        event.target.value = "";
+      }
+
+      function loadConfigFile(file) {
+        const statusEl = document.getElementById("cfg-file-status");
+        if (!file.name.endsWith(".json")) {
+          showCfgStatus("error", "Arquivo inválido. Use um arquivo .json.");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const cfg = JSON.parse(ev.target.result);
+            const required = ["apiKey", "projectId", "appId", "googleClientId"];
+            const missing = required.filter((k) => !cfg[k]);
+            if (missing.length === required.length) {
+              throw new Error(
+                "Nenhuma chave de configuração reconhecida no arquivo.",
+              );
+            }
+
+            // Preenche os campos do formulário
+            if (cfg.apiKey)
+              document.getElementById("cfg-apiKey").value = cfg.apiKey;
+            if (cfg.projectId)
+              document.getElementById("cfg-projectId").value = cfg.projectId;
+            if (cfg.appId)
+              document.getElementById("cfg-appId").value = cfg.appId;
+            if (cfg.googleClientId)
+              document.getElementById("cfg-googleClientId").value =
+                cfg.googleClientId;
+            if (cfg.driveFolderName)
+              document.getElementById("cfg-driveFolderName").value =
+                cfg.driveFolderName;
+
+            const loaded = required.filter((k) => !!cfg[k]);
+            const warn =
+              missing.length > 0
+                ? ` (campos ausentes: ${missing.join(", ")})`
+                : "";
+            showCfgStatus(
+              "success",
+              `Configuração carregada: ${loaded.join(", ")}${warn}. Clique em Salvar Configurações para aplicar.`,
+            );
+          } catch (err) {
+            showCfgStatus("error", "Erro ao ler o arquivo: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      function showCfgStatus(type, msg) {
+        const el = document.getElementById("cfg-file-status");
+        el.style.display = "block";
+        if (type === "success") {
+          el.style.background = "var(--green-l, #f0fdf4)";
+          el.style.border = "1px solid #bbf7d0";
+          el.style.color = "var(--green, #16a34a)";
+        } else {
+          el.style.background = "#fef2f2";
+          el.style.border = "1px solid #fecaca";
+          el.style.color = "#dc2626";
+        }
+        el.textContent = msg;
       }
 
       // ─── PDF EXPORT ────────────────────────────────────────────────────────────
