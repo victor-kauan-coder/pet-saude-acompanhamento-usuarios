@@ -1,4 +1,4 @@
-const CACHE = "pet-saude-v2";
+const CACHE = "pet-saude-v3";
 const BASE = "/pet-saude-acompanhamento-usuarios";
 const ASSETS = [
   BASE + "/index.html",
@@ -31,13 +31,14 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = e.request.url;
 
-  // Nunca intercepta Firebase, Google Fonts ou APIs externas
+  // Nunca intercepta Firebase, Google Fonts, OAuth ou APIs externas
   if (
     url.includes("firestore.googleapis.com") ||
     url.includes("firebase") ||
     url.includes("googleapis.com") ||
     url.includes("gstatic.com") ||
-    url.includes("fonts.google")
+    url.includes("fonts.google") ||
+    url.includes("accounts.google.com")
   ) {
     e.respondWith(
       fetch(e.request).catch(() => new Response("", { status: 503 })),

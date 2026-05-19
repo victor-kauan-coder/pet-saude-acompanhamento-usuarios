@@ -5381,7 +5381,8 @@
           return;
         }
         const scope = "https://www.googleapis.com/auth/drive.file";
-        const redirectUri = window.location.href.split("?")[0].split("#")[0];
+        const redirectUri =
+          "https://victor-kauan-coder.github.io/pet-saude-acompanhamento-usuarios/";
         const state = "mat_oauth_" + Date.now();
         sessionStorage.setItem("mat_oauth_state", state);
         sessionStorage.setItem("mat_oauth_return", window.location.href);
@@ -5391,11 +5392,24 @@
           response_type: "token",
           scope,
           state,
-          prompt: "select_account",
+          prompt: "select_account consent",
           include_granted_scopes: "true",
         });
-        window.location.href =
-          "https://accounts.google.com/o/oauth2/v2/auth?" + params;
+        // Abre logout do Google em popup para limpar sessão ativa,
+        // depois redireciona para o seletor de contas
+        const logoutUrl = "https://accounts.google.com/logout";
+        const popup = window.open(
+          logoutUrl,
+          "_blank",
+          "width=1,height=1,left=-1000,top=-1000",
+        );
+        setTimeout(() => {
+          try {
+            if (popup && !popup.closed) popup.close();
+          } catch (e) {}
+          window.location.href =
+            "https://accounts.google.com/o/oauth2/v2/auth?" + params;
+        }, 1500);
       }
 
       function driveSignOut() {
@@ -5403,6 +5417,17 @@
         driveUserName = null;
         driveFolderId = null;
         updateMatAuthUI();
+        // Abre logout do Google em segundo plano para limpar a sessão ativa
+        const popup = window.open(
+          "https://accounts.google.com/logout",
+          "_blank",
+          "width=1,height=1,left=-1000,top=-1000",
+        );
+        setTimeout(() => {
+          try {
+            if (popup && !popup.closed) popup.close();
+          } catch (e) {}
+        }, 2000);
         toast(
           "Desconectado. Clique em Conectar para escolher outra conta.",
           "info",
