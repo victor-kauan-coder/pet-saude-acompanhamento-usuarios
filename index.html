@@ -35,7 +35,8 @@
       import {
         getAuth,
         signInWithEmailAndPassword,
-        signInWithPopup,
+        signInWithRedirect,
+        getRedirectResult,
         GoogleAuthProvider,
         onAuthStateChanged,
         signOut,
@@ -52,7 +53,8 @@
       window.FirebaseAuth = {
         getAuth,
         signInWithEmailAndPassword,
-        signInWithPopup,
+        signInWithRedirect,
+        getRedirectResult,
         GoogleAuthProvider,
         onAuthStateChanged,
         signOut,
@@ -3873,11 +3875,9 @@
               "Firebase não configurado. Use o botão acima para configurar.",
             );
           const googleProvider = new window.FirebaseAuth.GoogleAuthProvider();
-          window.FirebaseAuth.signInWithPopup(fbAuth, googleProvider).catch(
-            () =>
-              showAuthError(
-                "Erro ao acessar com o Google. Verifique se o domínio está autorizado no Firebase Console.",
-              ),
+          window.FirebaseAuth.signInWithRedirect(fbAuth, googleProvider).catch(
+            (err) =>
+              showAuthError("Erro ao iniciar login com Google: " + err.message),
           );
         });
 
@@ -3938,6 +3938,14 @@
 
           fbDb = getFirestore(fbApp);
           fbAuth = getAuth(fbApp);
+
+          // Processa resultado do redirect do Google (retorno após autenticação)
+          const { getRedirectResult } = window.FirebaseAuth;
+          getRedirectResult(fbAuth).catch((err) => {
+            console.error("Redirect result erro:", err);
+            authScreen.style.display = "flex";
+            showAuthError("Erro ao finalizar login com Google: " + err.message);
+          });
 
           // Observa o estado de autenticação — ponto central de controle
           onAuthStateChanged(fbAuth, (user) => {
@@ -4074,25 +4082,17 @@
         try {
           const { initializeApp, getApps, deleteApp } = window.FirebaseApp;
           const { getFirestore, doc, getDoc } = window.FirebaseFirestore;
-          const { getAuth, signInAnonymously } = window.FirebaseAuth;
 
           const testName = "__test__" + Date.now();
           const testApp = initializeApp(
             { apiKey, projectId, appId: appId || undefined },
             testName,
           );
-          // Testa apenas se o projeto Firebase existe e responde,
-          // sem tentar ler documento protegido (exigiria autenticação)
-          const testAuth = getAuth(testApp);
-          await new Promise((resolve, reject) => {
-            const unsub = testAuth.onAuthStateChanged(() => {
-              unsub();
-              resolve();
-            }, reject);
-          });
+          const testDb = getFirestore(testApp);
+          await getDoc(doc(testDb, "pet_saude", "dados"));
           await deleteApp(testApp);
           statusEl.innerHTML =
-            '<span style="color:var(--green)">Conexão bem-sucedida! Firebase pronto para usar.</span>';
+            '<span style="color:var(--green)">✓ Conexão bem-sucedida! Firebase pronto para usar.</span>';
         } catch (e) {
           statusEl.innerHTML = `<span style="color:var(--red)">✗ Erro: ${e.message}</span>`;
         }
