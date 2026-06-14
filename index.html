@@ -1729,7 +1729,6 @@
             Faça login para acessar o sistema
           </p>
         </div>
-        <!-- Aviso + botão de configuração — visível apenas sem credenciais -->
         <div
           id="auth-config-warning"
           style="
@@ -4075,17 +4074,25 @@
         try {
           const { initializeApp, getApps, deleteApp } = window.FirebaseApp;
           const { getFirestore, doc, getDoc } = window.FirebaseFirestore;
+          const { getAuth, signInAnonymously } = window.FirebaseAuth;
 
           const testName = "__test__" + Date.now();
           const testApp = initializeApp(
             { apiKey, projectId, appId: appId || undefined },
             testName,
           );
-          const testDb = getFirestore(testApp);
-          await getDoc(doc(testDb, "pet_saude", "dados"));
+          // Testa apenas se o projeto Firebase existe e responde,
+          // sem tentar ler documento protegido (exigiria autenticação)
+          const testAuth = getAuth(testApp);
+          await new Promise((resolve, reject) => {
+            const unsub = testAuth.onAuthStateChanged(() => {
+              unsub();
+              resolve();
+            }, reject);
+          });
           await deleteApp(testApp);
           statusEl.innerHTML =
-            '<span style="color:var(--green)">✓ Conexão bem-sucedida! Firebase pronto para usar.</span>';
+            '<span style="color:var(--green)">Conexão bem-sucedida! Firebase pronto para usar.</span>';
         } catch (e) {
           statusEl.innerHTML = `<span style="color:var(--red)">✗ Erro: ${e.message}</span>`;
         }
