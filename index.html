@@ -1729,6 +1729,29 @@
             Faça login para acessar o sistema
           </p>
         </div>
+        <div
+          id="auth-config-warning"
+          style="
+            display: none;
+            background: var(--amber-l);
+            border: 1px solid #fcd34d;
+            border-radius: 10px;
+            padding: 11px 14px;
+            margin-bottom: 18px;
+            text-align: left;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--amber);
+            line-height: 1.5;
+          "
+        >
+          ⚙️ Firebase não configurado.<br />
+          <span style="font-weight: 500; color: var(--text2)">
+            Abra as <strong>Configurações</strong> (ícone ⚙️ no menu) e preencha
+            a <strong>API Key</strong> e o <strong>Project ID</strong> do
+            Firebase antes de fazer login.
+          </span>
+        </div>
         <button
           id="btn-google-login"
           class="btn btn-secondary"
@@ -3798,7 +3821,9 @@
         .addEventListener("click", () => {
           authError.style.display = "none";
           if (!fbAuth)
-            return showAuthError("Firebase ainda não inicializado. Aguarde.");
+            return showAuthError(
+              "Firebase não configurado. Abra as Configurações e preencha a API Key e o Project ID.",
+            );
           const googleProvider = new window.FirebaseAuth.GoogleAuthProvider();
           window.FirebaseAuth.signInWithPopup(fbAuth, googleProvider).catch(
             () =>
@@ -3817,7 +3842,9 @@
             return showAuthError("Preencha e-mail e senha.");
           authError.style.display = "none";
           if (!fbAuth)
-            return showAuthError("Firebase ainda não inicializado. Aguarde.");
+            return showAuthError(
+              "Firebase não configurado. Abra as Configurações e preencha a API Key e o Project ID.",
+            );
           window.FirebaseAuth.signInWithEmailAndPassword(
             fbAuth,
             email,
@@ -3835,7 +3862,16 @@
 
       // ── INICIALIZAÇÃO DO FIREBASE COM AUTH ────────────────────────────────────
       function fbInit() {
-        if (!settings.apiKey || !settings.projectId) return;
+        if (!settings.apiKey || !settings.projectId) {
+          // Sem credenciais: garante que a tela de login apareça com aviso orientativo
+          authScreen.style.display = "flex";
+          const cfgWarning = document.getElementById("auth-config-warning");
+          if (cfgWarning) cfgWarning.style.display = "block";
+          return;
+        }
+        // Credenciais presentes: oculta aviso de configuração (se existia)
+        const cfgWarning = document.getElementById("auth-config-warning");
+        if (cfgWarning) cfgWarning.style.display = "none";
         try {
           const { initializeApp, getApps } = window.FirebaseApp;
           const { getFirestore, doc, onSnapshot } = window.FirebaseFirestore;
