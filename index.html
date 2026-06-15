@@ -3930,6 +3930,7 @@
             initializeApp(
               {
                 apiKey: settings.apiKey,
+                authDomain: `${settings.projectId}.firebaseapp.com`,
                 projectId: settings.projectId,
                 appId: settings.appId || undefined,
               },
@@ -3939,11 +3940,10 @@
           fbDb = getFirestore(fbApp);
           fbAuth = getAuth(fbApp);
 
-          // Processa resultado do redirect do Google (retorno após autenticação)
+          // Processa o retorno do redirect do Google
           const { getRedirectResult } = window.FirebaseAuth;
           getRedirectResult(fbAuth).catch((err) => {
             console.error("Redirect result erro:", err);
-            authScreen.style.display = "flex";
             showAuthError("Erro ao finalizar login com Google: " + err.message);
           });
 
