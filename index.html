@@ -1700,6 +1700,43 @@
     </style>
   </head>
   <body>
+    <!-- ── TELA DE CARREGAMENTO (mostrada enquanto o Firebase verifica a sessão) ── -->
+    <div
+      id="loading-screen"
+      style="
+        position: fixed;
+        inset: 0;
+        background: var(--bg);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 16px;
+      "
+    >
+      <div
+        style="
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: 3px solid var(--border2);
+          border-top-color: var(--blue);
+          animation: spin 0.7s linear infinite;
+        "
+      ></div>
+      <p style="font-size: 13px; color: var(--text3); font-weight: 600">
+        A verificar sessão…
+      </p>
+    </div>
+    <style>
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+
     <!-- ── TELA DE LOGIN ──────────────────────────────────────────────────────── -->
     <div
       id="auth-screen"
@@ -1708,7 +1745,7 @@
         inset: 0;
         background: var(--bg);
         z-index: 9999;
-        display: flex;
+        display: none;
         align-items: center;
         justify-content: center;
       "
@@ -3910,14 +3947,27 @@
       }
 
       // ── INICIALIZAÇÃO DO FIREBASE COM AUTH ────────────────────────────────────
+      const loadingScreen = document.getElementById("loading-screen");
+
+      function hideLoadingScreen() {
+        if (loadingScreen) loadingScreen.style.display = "none";
+      }
+
       async function fbInit() {
         const cfgWarning = document.getElementById("auth-config-warning");
+
+        // Se não houver configuração, dispensa logo o loading e mostra login
         if (!settings.apiKey || !settings.projectId) {
+          hideLoadingScreen();
           authScreen.style.display = "flex";
           if (cfgWarning) cfgWarning.style.display = "block";
           return;
         }
         if (cfgWarning) cfgWarning.style.display = "none";
+
+        // Garante que o ecrã de carregamento está visível enquanto verificamos a sessão
+        if (loadingScreen) loadingScreen.style.display = "flex";
+
         try {
           const { initializeApp, getApps, deleteApp } = window.FirebaseApp;
           const { getFirestore, doc, onSnapshot } = window.FirebaseFirestore;
@@ -3959,11 +4009,18 @@
           fbDb = getFirestore(fbApp);
           fbAuth = getAuth(fbApp);
 
-          // Processa retorno do redirect do Google
-          getRedirectResult(fbAuth).catch((err) => {
-            console.error("Redirect result erro:", err);
-            showAuthError("Erro ao finalizar login com Google: " + err.message);
-          });
+          // ── PASSO CRÍTICO: processar o resultado do redirect ANTES de registar
+          // o onAuthStateChanged. Quando o utilizador regressa da página da Google,
+          // o Firebase precisa de consumir o token da URL; só depois é que o
+          // onAuthStateChanged dispara com user != null.
+          try {
+            await getRedirectResult(fbAuth);
+          } catch (redirectErr) {
+            console.error("Redirect result erro:", redirectErr);
+            // Só mostramos o erro se não houver sessão activa (ver onAuthStateChanged)
+            // Guardamos para apresentar caso o utilizador não esteja autenticado
+            window._fbRedirectError = redirectErr.message;
+          }
 
           // Cancela listener de auth anterior para evitar duplicatas
           if (fbAuthUnsubscribe) {
@@ -3972,10 +4029,14 @@
           }
 
           // Observa o estado de autenticação — ponto central de controle
+          // O onAuthStateChanged dispara uma vez imediatamente com o estado actual,
+          // incluindo a sessão restaurada após um signInWithRedirect.
           fbAuthUnsubscribe = onAuthStateChanged(fbAuth, (user) => {
             if (user) {
-              // Usuário autenticado: oculta login e navega imediatamente
+              // Usuário autenticado: oculta loading + login e navega imediatamente
+              hideLoadingScreen();
               authScreen.style.display = "none";
+              window._fbRedirectError = null;
               navigate(currentPage, detailClassId);
 
               if (fbUnsubscribe) {
@@ -4018,16 +4079,28 @@
 
               updateSyncStatus();
             } else {
-              // Sem usuário: cancela listeners e exibe tela de login
+              // Sem usuário: cancela listeners, oculta loading e exibe tela de login
+              hideLoadingScreen();
               if (fbUnsubscribe) {
                 fbUnsubscribe();
                 fbUnsubscribe = null;
+              }
+              // Se houve erro no redirect, mostra-o agora que a tela de login está visível
+              if (window._fbRedirectError) {
+                showAuthError(
+                  "Erro ao finalizar login com Google: " +
+                    window._fbRedirectError,
+                );
+                window._fbRedirectError = null;
               }
               authScreen.style.display = "flex";
             }
           });
         } catch (e) {
           console.error("Firebase init erro:", e);
+          hideLoadingScreen();
+          authScreen.style.display = "flex";
+          showAuthError("Erro ao inicializar Firebase: " + e.message);
         }
       }
 
