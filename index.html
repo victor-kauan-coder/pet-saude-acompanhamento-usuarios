@@ -3648,7 +3648,7 @@
           if (s) settings = { ...settings, ...JSON.parse(s) };
         } catch (e) {}
       }
-      function saveSettings() {
+      function saveSheetSettings() {
         settings.sheetId = document.getElementById("cfg-sheetId").value.trim();
         settings.email = document.getElementById("cfg-email").value.trim();
         settings.privateKey = document
@@ -3852,7 +3852,8 @@
       let fbApp = null;
       let fbDb = null;
       let fbAuth = null;
-      let fbUnsubscribe = null; // listener tempo real
+      let fbUnsubscribe = null; // listener tempo real (onSnapshot Firestore)
+      let fbAuthUnsubscribe = null; // listener de autenticação (onAuthStateChanged)
       let fbSaveTimer = null;
       let fbSaving = false;
       let fbLocalWrite = false; // flag: ignora onSnapshot disparado pela própria escrita local
@@ -3923,21 +3924,37 @@
           const { getAuth, onAuthStateChanged, getRedirectResult } =
             window.FirebaseAuth;
 
-          // Deleta app existente para garantir que authDomain seja incluído
+          // Só recria o app se as configurações mudaram (evita loop de logout)
           const existing = getApps().find(
             (a) => a.options.projectId === settings.projectId,
           );
-          if (existing) await deleteApp(existing);
+          const configChanged =
+            !existing ||
+            existing.options.apiKey !== settings.apiKey ||
+            existing.options.appId !== (settings.appId || undefined);
 
-          fbApp = initializeApp(
-            {
-              apiKey: settings.apiKey,
-              authDomain: `${settings.projectId}.firebaseapp.com`,
-              projectId: settings.projectId,
-              appId: settings.appId || undefined,
-            },
-            settings.projectId,
-          );
+          if (existing && configChanged) {
+            // Cancela listeners antes de destruir o app
+            if (fbUnsubscribe) {
+              fbUnsubscribe();
+              fbUnsubscribe = null;
+            }
+            await deleteApp(existing);
+          }
+
+          if (!existing || configChanged) {
+            fbApp = initializeApp(
+              {
+                apiKey: settings.apiKey,
+                authDomain: `${settings.projectId}.firebaseapp.com`,
+                projectId: settings.projectId,
+                appId: settings.appId || undefined,
+              },
+              settings.projectId,
+            );
+          } else {
+            fbApp = existing;
+          }
 
           fbDb = getFirestore(fbApp);
           fbAuth = getAuth(fbApp);
@@ -3948,8 +3965,14 @@
             showAuthError("Erro ao finalizar login com Google: " + err.message);
           });
 
+          // Cancela listener de auth anterior para evitar duplicatas
+          if (fbAuthUnsubscribe) {
+            fbAuthUnsubscribe();
+            fbAuthUnsubscribe = null;
+          }
+
           // Observa o estado de autenticação — ponto central de controle
-          onAuthStateChanged(fbAuth, (user) => {
+          fbAuthUnsubscribe = onAuthStateChanged(fbAuth, (user) => {
             if (user) {
               // Usuário autenticado: oculta login e navega imediatamente
               authScreen.style.display = "none";
