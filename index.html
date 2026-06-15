@@ -3671,6 +3671,8 @@
         try {
           const { initializeApp, getApps } = window.FirebaseApp;
           const { getFirestore, doc, onSnapshot } = window.FirebaseFirestore;
+          // IMPORTANTE: Trazendo as funções de Auth para dentro do init
+          const { getAuth, signInAnonymously } = window.FirebaseAuth;
 
           const existing = getApps().find(
             (a) => a.options.projectId === settings.projectId,
@@ -3688,46 +3690,69 @@
 
           fbDb = getFirestore(fbApp);
 
-          if (fbUnsubscribe) {
-            fbUnsubscribe();
-            fbUnsubscribe = null;
-          }
+          // === CORREÇÃO DO ERRO ===
+          // 1. Obtém o serviço de autenticação
+          const auth = getAuth(fbApp);
 
-          const docRef = doc(fbDb, "pet_saude", "dados");
-          fbUnsubscribe = onSnapshot(
-            docRef,
-            (snap) => {
-              // Ignora disparo causado pela própria escrita local
-              if (fbLocalWrite) return;
+          // 2. Faz o login invisível e ESPERA o resultado (.then)
+          signInAnonymously(auth)
+            .then(() => {
+              console.log(
+                "Autenticação anônima garantida. Iniciando leitura...",
+              );
 
-              if (!snap.exists()) return;
-              const remote = snap.data();
-              if (!remote || !remote.users) return;
-
-              // Só atualiza se realmente veio dado diferente de outro dispositivo
-              if (JSON.stringify(remote) !== JSON.stringify(db)) {
-                db = remote;
-                WORKSHOPS = (db.workshops || []).filter((w) => !w.deletedAt);
-                localStorage.setItem("pet_saude_db", JSON.stringify(db));
-                navigate(currentPage, detailClassId);
-                const timeEl = document.getElementById("syncTime");
-                if (timeEl)
-                  timeEl.textContent =
-                    "Sync: " +
-                    new Date().toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
+              if (fbUnsubscribe) {
+                fbUnsubscribe();
+                fbUnsubscribe = null;
               }
-            },
-            (err) => {
-              console.warn("Firebase listener erro:", err);
-              document.getElementById("syncDot").className = "dot error";
-              document.getElementById("syncText").textContent = "Erro Firebase";
-            },
-          );
 
-          updateSyncStatus();
+              const docRef = doc(fbDb, "pet_saude", "dados");
+
+              // 3. Só agora, com permissão concedida, iniciamos o onSnapshot
+              fbUnsubscribe = onSnapshot(
+                docRef,
+                (snap) => {
+                  // Ignora disparo causado pela própria escrita local
+                  if (fbLocalWrite) return;
+
+                  if (!snap.exists()) return;
+                  const remote = snap.data();
+                  if (!remote || !remote.users) return;
+
+                  // Só atualiza se realmente veio dado diferente de outro dispositivo
+                  if (JSON.stringify(remote) !== JSON.stringify(db)) {
+                    db = remote;
+                    WORKSHOPS = (db.workshops || []).filter(
+                      (w) => !w.deletedAt,
+                    );
+                    localStorage.setItem("pet_saude_db", JSON.stringify(db));
+                    navigate(currentPage, detailClassId);
+                    const timeEl = document.getElementById("syncTime");
+                    if (timeEl)
+                      timeEl.textContent =
+                        "Sync: " +
+                        new Date().toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+                  }
+                },
+                (err) => {
+                  console.warn("Firebase listener erro:", err);
+                  document.getElementById("syncDot").className = "dot error";
+                  document.getElementById("syncText").textContent =
+                    "Erro Firebase";
+                },
+              );
+
+              updateSyncStatus();
+            })
+            .catch((authErro) => {
+              console.error("Falha ao criar sessão anônima:", authErro);
+              document.getElementById("syncDot").className = "dot error";
+              document.getElementById("syncText").textContent =
+                "Erro de Acesso";
+            });
         } catch (e) {
           console.error("Firebase init erro:", e);
         }
