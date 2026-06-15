@@ -3909,7 +3909,7 @@
       }
 
       // ── INICIALIZAÇÃO DO FIREBASE COM AUTH ────────────────────────────────────
-      function fbInit() {
+      async function fbInit() {
         const cfgWarning = document.getElementById("auth-config-warning");
         if (!settings.apiKey || !settings.projectId) {
           authScreen.style.display = "flex";
@@ -3918,30 +3918,31 @@
         }
         if (cfgWarning) cfgWarning.style.display = "none";
         try {
-          const { initializeApp, getApps } = window.FirebaseApp;
+          const { initializeApp, getApps, deleteApp } = window.FirebaseApp;
           const { getFirestore, doc, onSnapshot } = window.FirebaseFirestore;
-          const { getAuth, onAuthStateChanged } = window.FirebaseAuth;
+          const { getAuth, onAuthStateChanged, getRedirectResult } =
+            window.FirebaseAuth;
 
+          // Deleta app existente para garantir que authDomain seja incluído
           const existing = getApps().find(
             (a) => a.options.projectId === settings.projectId,
           );
-          fbApp =
-            existing ||
-            initializeApp(
-              {
-                apiKey: settings.apiKey,
-                authDomain: `${settings.projectId}.firebaseapp.com`,
-                projectId: settings.projectId,
-                appId: settings.appId || undefined,
-              },
-              settings.projectId,
-            );
+          if (existing) await deleteApp(existing);
+
+          fbApp = initializeApp(
+            {
+              apiKey: settings.apiKey,
+              authDomain: `${settings.projectId}.firebaseapp.com`,
+              projectId: settings.projectId,
+              appId: settings.appId || undefined,
+            },
+            settings.projectId,
+          );
 
           fbDb = getFirestore(fbApp);
           fbAuth = getAuth(fbApp);
 
-          // Processa o retorno do redirect do Google
-          const { getRedirectResult } = window.FirebaseAuth;
+          // Processa retorno do redirect do Google
           getRedirectResult(fbAuth).catch((err) => {
             console.error("Redirect result erro:", err);
             showAuthError("Erro ao finalizar login com Google: " + err.message);
@@ -3950,8 +3951,9 @@
           // Observa o estado de autenticação — ponto central de controle
           onAuthStateChanged(fbAuth, (user) => {
             if (user) {
-              // Usuário autenticado: oculta login e inicia listeners do Firestore
+              // Usuário autenticado: oculta login e navega imediatamente
               authScreen.style.display = "none";
+              navigate(currentPage, detailClassId);
 
               if (fbUnsubscribe) {
                 fbUnsubscribe();
@@ -3962,14 +3964,10 @@
               fbUnsubscribe = onSnapshot(
                 docRef,
                 (snap) => {
-                  // Ignora disparo causado pela própria escrita local
                   if (fbLocalWrite) return;
-
                   if (!snap.exists()) return;
                   const remote = snap.data();
                   if (!remote || !remote.users) return;
-
-                  // Só atualiza se realmente veio dado diferente de outro dispositivo
                   if (JSON.stringify(remote) !== JSON.stringify(db)) {
                     db = remote;
                     WORKSHOPS = (db.workshops || []).filter(
