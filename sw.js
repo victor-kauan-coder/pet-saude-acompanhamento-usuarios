@@ -10,10 +10,11 @@ const ASSETS = [
 // Instala e faz cache dos arquivos principais
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
-  self.skipWaiting();
+  // NÃO chama skipWaiting aqui — deixa o novo SW aguardar
+  // para que o app possa notificar o usuário antes de recarregar
 });
 
-// Remove caches antigos
+// Remove caches antigos e assume o controle imediatamente
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches
@@ -22,9 +23,16 @@ self.addEventListener("activate", (e) => {
         Promise.all(
           keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)),
         ),
-      ),
+      )
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
+});
+
+// Mensagens vindas do app (ex: "SKIP_WAITING" para forçar atualização)
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 // Estratégia: Firebase e fontes sempre vão à rede; resto usa cache
@@ -46,7 +54,24 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Cache first, network fallback
+  // Network first para o index.html — garante que sempre busca versão nova
+  // quando online, mas cai no cache se offline
+  if (url.endsWith("/index.html") || url.endsWith("/")) {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(BASE + "/index.html")),
+    );
+    return;
+  }
+
+  // Cache first, network fallback para demais assets
   e.respondWith(
     caches
       .match(e.request)
@@ -60,6 +85,6 @@ self.addEventListener("fetch", (e) => {
           return res;
         });
       })
-      .catch(() => caches.match("./index.html")),
+      .catch(() => caches.match(BASE + "/index.html")),
   );
 });

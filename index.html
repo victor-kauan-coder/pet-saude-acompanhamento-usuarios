@@ -2366,6 +2366,20 @@
           <div class="form-group">
             <label class="form-label">Nível Inicial</label>
             <div class="pills" id="usr-lit-pills"></div>
+            <div
+              id="usr-lit-desc"
+              style="
+                margin-top: 10px;
+                padding: 10px 13px;
+                border-radius: 10px;
+                border-left: 3px solid #94a3b8;
+                background: #f1f5f9;
+                font-size: 12.5px;
+                color: var(--text2);
+                line-height: 1.5;
+                transition: all 0.2s;
+              "
+            ></div>
           </div>
           <div class="form-section">Perfil Digital</div>
           <div id="usr-toggles"></div>
@@ -2429,6 +2443,21 @@
           <div class="form-group">
             <label class="form-label">Nível Observado neste Encontro</label>
             <div class="pills" id="com-lit-pills"></div>
+            <div
+              id="com-lit-desc"
+              style="
+                margin-top: 10px;
+                padding: 10px 13px;
+                border-radius: 10px;
+                border-left: 3px solid #94a3b8;
+                background: #f1f5f9;
+                font-size: 12.5px;
+                color: var(--text2);
+                line-height: 1.5;
+                transition: all 0.2s;
+                display: none;
+              "
+            ></div>
           </div>
           <div class="form-group">
             <label class="form-label">Avaliação / Observações *</label>
@@ -2750,6 +2779,38 @@
             </button>
           </div>
           <div id="cfg-workshops-list" style="margin-bottom: 18px"></div>
+          <hr />
+
+          <!-- ── Níveis de Letramento ──────────────────────────────────────────── -->
+          <div
+            class="settings-section"
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            <span>Níveis de Letramento Digital</span>
+            <button
+              class="btn btn-primary btn-sm"
+              onclick="saveLiteracyLevels()"
+              style="margin: 0"
+            >
+              Salvar Níveis
+            </button>
+          </div>
+          <div
+            style="
+              font-size: 12px;
+              color: var(--text3);
+              margin-bottom: 12px;
+              line-height: 1.5;
+            "
+          >
+            Personalize os nomes e descrições de cada nível. As alterações
+            afetam todo o sistema imediatamente.
+          </div>
+          <div id="cfg-literacy-list"></div>
           <hr />
 
           <!-- ── Dados ─────────────────────────────────────────────────────────── -->
@@ -3290,7 +3351,7 @@
 
     <script>
       // ─── DATA ──────────────────────────────────────────────────────────────────
-      const LITERACY = [
+      let LITERACY = [
         "Iniciante",
         "Em Desenvolvimento",
         "Intermediário",
@@ -3317,6 +3378,13 @@
         "#BFDBFE",
         "#DDD6FE",
         "#6EE7B7",
+      ];
+      let LITERACY_DESC = [
+        "Nunca ou raramente usou dispositivos digitais. Não conhece o básico de smartphones, aplicativos ou internet.",
+        "Usa o celular para funções simples (chamadas, WhatsApp), mas tem dificuldade com apps, senhas e navegação.",
+        "Consegue navegar na internet, baixar apps e usar serviços digitais com alguma orientação ocasional.",
+        "Utiliza serviços digitais com autonomia, cria e-mail, acessa Gov.br, e resolve problemas comuns sozinho.",
+        "Domina o ambiente digital com segurança, orienta outras pessoas e utiliza recursos avançados sem dificuldades.",
       ];
 
       const DAYS = [
@@ -3642,7 +3710,73 @@
           settings.driveFolderName || "PET Saúde Digital — Materiais";
         updateSyncStatus();
         renderSettingsWorkshops();
+        renderLiteracyEditor();
         openModal("settingsModal");
+      }
+
+      function renderLiteracyEditor() {
+        const container = document.getElementById("cfg-literacy-list");
+        if (!container) return;
+        const colors = LITERACY_COLORS;
+        const bgs = LITERACY_BG;
+        container.innerHTML = LITERACY.map(
+          (l, i) => `
+          <div style="
+            border: 1.5px solid ${LITERACY_BORDER[i]};
+            border-radius: 12px;
+            padding: 13px 14px;
+            margin-bottom: 10px;
+            background: ${bgs[i]};
+          ">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:${colors[i]};flex-shrink:0;"></div>
+              <input
+                id="lit-name-${i}"
+                value="${l}"
+                style="
+                  border: 1px solid ${LITERACY_BORDER[i]};
+                  border-radius: 7px;
+                  padding: 5px 10px;
+                  font-size: 13px;
+                  font-weight: 700;
+                  color: ${colors[i]};
+                  background: white;
+                  flex: 1;
+                  outline: none;
+                "
+              />
+            </div>
+            <textarea
+              id="lit-desc-${i}"
+              rows="2"
+              style="
+                width: 100%;
+                border: 1px solid ${LITERACY_BORDER[i]};
+                border-radius: 7px;
+                padding: 7px 10px;
+                font-size: 12px;
+                color: var(--text2);
+                background: white;
+                resize: vertical;
+                outline: none;
+                font-family: inherit;
+                line-height: 1.5;
+                box-sizing: border-box;
+              "
+            >${LITERACY_DESC[i] || ""}</textarea>
+          </div>
+        `,
+        ).join("");
+      }
+
+      function saveLiteracyLevels() {
+        for (let i = 0; i < LITERACY.length; i++) {
+          const nameEl = document.getElementById("lit-name-" + i);
+          const descEl = document.getElementById("lit-desc-" + i);
+          if (nameEl) LITERACY[i] = nameEl.value.trim() || LITERACY[i];
+          if (descEl) LITERACY_DESC[i] = descEl.value.trim();
+        }
+        toast("Níveis de letramento atualizados!", "success");
       }
       function updateSyncStatus() {
         const dot = document.getElementById("syncDot");
@@ -4907,6 +5041,15 @@
           },
         ).join("");
 
+        // Show description for initially selected level
+        const initI = LITERACY.indexOf(selectedLitLevel);
+        const initDesc = document.getElementById("usr-lit-desc");
+        if (initDesc && initI >= 0) {
+          initDesc.style.borderLeftColor = LITERACY_COLORS[initI];
+          initDesc.style.background = LITERACY_BG[initI];
+          initDesc.textContent = LITERACY_DESC[initI] || "";
+        }
+
         document.getElementById("usr-toggles").innerHTML = [
           [
             "hasCellphone",
@@ -4962,6 +5105,13 @@
           p.className =
             "pill" + (LITERACY[i] === level ? " active-" + key : "");
         });
+        const i = LITERACY.indexOf(level);
+        const desc = document.getElementById("usr-lit-desc");
+        if (desc && i >= 0) {
+          desc.style.borderLeftColor = LITERACY_COLORS[i];
+          desc.style.background = LITERACY_BG[i];
+          desc.textContent = LITERACY_DESC[i] || "";
+        }
       }
 
       function toggleUserClass(id, el) {
@@ -5186,6 +5336,18 @@
           const key = ["gray", "amber", "blue", "purple", "green"][i];
           p.className = "pill" + (LITERACY[i] === l ? " active-" + key : "");
         });
+        const i = LITERACY.indexOf(l);
+        const desc = document.getElementById("com-lit-desc");
+        if (desc) {
+          if (i >= 0 && l) {
+            desc.style.borderLeftColor = LITERACY_COLORS[i];
+            desc.style.background = LITERACY_BG[i];
+            desc.textContent = LITERACY_DESC[i] || "";
+            desc.style.display = "block";
+          } else {
+            desc.style.display = "none";
+          }
+        }
       }
 
       function saveComment() {
