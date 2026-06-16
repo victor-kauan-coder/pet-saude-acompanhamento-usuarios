@@ -6365,17 +6365,65 @@
           .register("./sw.js")
           .then((reg) => {
             console.log("PWA: Service Worker registrado.", reg.scope);
+
+            // Verifica atualizações a cada vez que o app é aberto/retomado
+            reg.update();
+            document.addEventListener("visibilitychange", () => {
+              if (document.visibilityState === "visible") reg.update();
+            });
           })
           .catch((err) => {
             console.warn("PWA: Falha ao registrar SW:", err);
           });
+
+        // ── Recebe notificação do SW quando uma nova versão assumiu o controle ──
+        navigator.serviceWorker.addEventListener("message", (e) => {
+          if (e.data && e.data.type === "SW_UPDATED") {
+            showUpdateBanner();
+          }
+        });
+
+        // Também detecta quando o controller troca (navegadores mais antigos)
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          showUpdateBanner();
+        });
+
+        function showUpdateBanner() {
+          // Evita mostrar o banner duas vezes
+          if (document.getElementById("pwa-update-banner")) return;
+
+          const banner = document.createElement("div");
+          banner.id = "pwa-update-banner";
+          banner.style.cssText = `
+            position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+            background:#2563EB; color:#fff; padding:14px 20px; border-radius:14px;
+            font-size:13px; font-weight:600; z-index:99999;
+            box-shadow:0 4px 24px rgba(37,99,235,.45);
+            display:flex; align-items:center; gap:12px;
+            max-width:calc(100vw - 40px); white-space:nowrap;
+          `;
+          banner.innerHTML = `
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            <span>Nova versão disponível!</span>
+            <button onclick="window.location.reload()" style="
+              background:#fff; color:#2563EB; border:none; border-radius:8px;
+              padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer;
+            ">Atualizar</button>
+            <button onclick="this.closest('#pwa-update-banner').remove()" style="
+              background:transparent; color:rgba(255,255,255,.75); border:none;
+              font-size:18px; cursor:pointer; padding:0 2px; line-height:1;
+            ">✕</button>
+          `;
+          document.body.appendChild(banner);
+        }
 
         // Botão de instalação (aparece quando o navegador dispara o evento)
         let deferredPrompt = null;
         window.addEventListener("beforeinstallprompt", (e) => {
           e.preventDefault();
           deferredPrompt = e;
-          // Mostra um toast discreto convidando a instalar
           setTimeout(() => {
             const t = document.createElement("div");
             t.style.cssText = `position:fixed;bottom:80px;left:50%;transform:translateX(-50%);

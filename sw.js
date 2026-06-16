@@ -1,4 +1,8 @@
-const CACHE = "pet-saude-v3";
+// ─── VERSÃO ────────────────────────────────────────────────────────────────
+// Troque este número a cada deploy para forçar a detecção de atualização.
+// Sugestão: use a data do deploy, ex: "20250616-1"
+const VERSION = "20250616-1";
+const CACHE = "pet-saude-v" + VERSION;
 const BASE = "/pet-saude-acompanhamento-usuarios";
 const ASSETS = [
   BASE + "/index.html",
@@ -8,13 +12,14 @@ const ASSETS = [
 ];
 
 // Instala e faz cache dos arquivos principais
+// skipWaiting() imediato: o novo SW assume sem precisar fechar o app.
+// O app detecta a troca via controllerchange e recarrega sozinho.
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
-  // NÃO chama skipWaiting aqui — deixa o novo SW aguardar
-  // para que o app possa notificar o usuário antes de recarregar
+  self.skipWaiting(); // Assume imediatamente após instalar
 });
 
-// Remove caches antigos e assume o controle imediatamente
+// Remove caches antigos, assume o controle e notifica todos os clientes
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches
@@ -24,12 +29,21 @@ self.addEventListener("activate", (e) => {
           keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)),
         ),
       )
-      .then(() => self.clients.claim()),
+      .then(() => self.clients.claim())
+      .then(() => {
+        // Avisa todas as abas/janelas abertas que há uma versão nova
+        return self.clients.matchAll({ type: "window" }).then((clients) => {
+          clients.forEach((client) =>
+            client.postMessage({ type: "SW_UPDATED", version: VERSION }),
+          );
+        });
+      }),
   );
 });
 
-// Mensagens vindas do app (ex: "SKIP_WAITING" para forçar atualização)
+// Mensagens vindas do app
 self.addEventListener("message", (e) => {
+  // Mantido para compatibilidade, mas skipWaiting já ocorre no install
   if (e.data && e.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
