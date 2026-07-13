@@ -32,7 +32,13 @@
         onSnapshot,
         getDoc,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-      // Expõe no window para uso no código não-modular abaixo
+      // Importações do Auth para o Login Anônimo
+      import {
+        getAuth,
+        signInAnonymously,
+      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+      // 1. Expõe as funções para o resto do seu aplicativo usar
       window.FirebaseApp = { initializeApp, getApps, deleteApp };
       window.FirebaseFirestore = {
         getFirestore,
@@ -41,6 +47,51 @@
         onSnapshot,
         getDoc,
       };
+      window.FirebaseAuth = { getAuth, signInAnonymously };
+
+      // =========================================================
+      // 2. A SEGUNDA PARTE ESTÁ AQUI: Login Anônimo Automático
+      // =========================================================
+      const savedConfig = localStorage.getItem("firebaseConfig");
+
+      if (savedConfig) {
+        try {
+          const firebaseConfig = JSON.parse(savedConfig);
+
+          // Inicializa o App com segurança
+          let app;
+          if (!getApps().length) {
+            app = initializeApp(firebaseConfig);
+          } else {
+            app = getApps()[0];
+          }
+
+          const auth = getAuth(app);
+
+          // Faz o login invisível no banco de dados automaticamente
+          signInAnonymously(auth)
+            .then(() => {
+              console.log("Login anônimo realizado com sucesso no Firestore!");
+
+              // Esconde a tela de login/configurações e mostra o app
+              const authScreen = document.getElementById("auth-screen");
+              if (authScreen) {
+                authScreen.style.display = "none";
+              }
+            })
+            .catch((error) => {
+              console.error(
+                "Erro na autenticação anônima:",
+                error.code,
+                error.message,
+              );
+            });
+        } catch (error) {
+          console.error("Erro ao processar as configurações:", error);
+        }
+      }
+
+      // Avisa o resto do seu código que o Firebase já terminou de carregar
       window.firebaseReady = true;
       window.dispatchEvent(new Event("firebaseReady"));
     </script>
@@ -2315,6 +2366,20 @@
           <div class="form-group">
             <label class="form-label">Nível Inicial</label>
             <div class="pills" id="usr-lit-pills"></div>
+            <div
+              id="usr-lit-desc"
+              style="
+                margin-top: 10px;
+                padding: 10px 13px;
+                border-radius: 10px;
+                border-left: 3px solid #94a3b8;
+                background: #f1f5f9;
+                font-size: 12.5px;
+                color: var(--text2);
+                line-height: 1.5;
+                transition: all 0.2s;
+              "
+            ></div>
           </div>
           <div class="form-section">Perfil Digital</div>
           <div id="usr-toggles"></div>
@@ -2378,6 +2443,21 @@
           <div class="form-group">
             <label class="form-label">Nível Observado neste Encontro</label>
             <div class="pills" id="com-lit-pills"></div>
+            <div
+              id="com-lit-desc"
+              style="
+                margin-top: 10px;
+                padding: 10px 13px;
+                border-radius: 10px;
+                border-left: 3px solid #94a3b8;
+                background: #f1f5f9;
+                font-size: 12.5px;
+                color: var(--text2);
+                line-height: 1.5;
+                transition: all 0.2s;
+                display: none;
+              "
+            ></div>
           </div>
           <div class="form-group">
             <label class="form-label">Avaliação / Observações *</label>
@@ -2699,6 +2779,38 @@
             </button>
           </div>
           <div id="cfg-workshops-list" style="margin-bottom: 18px"></div>
+          <hr />
+
+          <!-- ── Níveis de Letramento ──────────────────────────────────────────── -->
+          <div
+            class="settings-section"
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            <span>Níveis de Letramento Digital</span>
+            <button
+              class="btn btn-primary btn-sm"
+              onclick="saveLiteracyLevels()"
+              style="margin: 0"
+            >
+              Salvar Níveis
+            </button>
+          </div>
+          <div
+            style="
+              font-size: 12px;
+              color: var(--text3);
+              margin-bottom: 12px;
+              line-height: 1.5;
+            "
+          >
+            Personalize os nomes e descrições de cada nível. As alterações
+            afetam todo o sistema imediatamente.
+          </div>
+          <div id="cfg-literacy-list"></div>
           <hr />
 
           <!-- ── Dados ─────────────────────────────────────────────────────────── -->
@@ -3239,7 +3351,7 @@
 
     <script>
       // ─── DATA ──────────────────────────────────────────────────────────────────
-      const LITERACY = [
+      let LITERACY = [
         "Iniciante",
         "Em Desenvolvimento",
         "Intermediário",
@@ -3266,6 +3378,13 @@
         "#BFDBFE",
         "#DDD6FE",
         "#6EE7B7",
+      ];
+      let LITERACY_DESC = [
+        "Nunca ou raramente usou dispositivos digitais. Não conhece o básico de smartphones, aplicativos ou internet.",
+        "Usa o celular para funções simples (chamadas, WhatsApp), mas tem dificuldade com apps, senhas e navegação.",
+        "Consegue navegar na internet, baixar apps e usar serviços digitais com alguma orientação ocasional.",
+        "Utiliza serviços digitais com autonomia, cria e-mail, acessa Gov.br, e resolve problemas comuns sozinho.",
+        "Domina o ambiente digital com segurança, orienta outras pessoas e utiliza recursos avançados sem dificuldades.",
       ];
 
       const DAYS = [
@@ -3591,7 +3710,73 @@
           settings.driveFolderName || "PET Saúde Digital — Materiais";
         updateSyncStatus();
         renderSettingsWorkshops();
+        renderLiteracyEditor();
         openModal("settingsModal");
+      }
+
+      function renderLiteracyEditor() {
+        const container = document.getElementById("cfg-literacy-list");
+        if (!container) return;
+        const colors = LITERACY_COLORS;
+        const bgs = LITERACY_BG;
+        container.innerHTML = LITERACY.map(
+          (l, i) => `
+          <div style="
+            border: 1.5px solid ${LITERACY_BORDER[i]};
+            border-radius: 12px;
+            padding: 13px 14px;
+            margin-bottom: 10px;
+            background: ${bgs[i]};
+          ">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:${colors[i]};flex-shrink:0;"></div>
+              <input
+                id="lit-name-${i}"
+                value="${l}"
+                style="
+                  border: 1px solid ${LITERACY_BORDER[i]};
+                  border-radius: 7px;
+                  padding: 5px 10px;
+                  font-size: 13px;
+                  font-weight: 700;
+                  color: ${colors[i]};
+                  background: white;
+                  flex: 1;
+                  outline: none;
+                "
+              />
+            </div>
+            <textarea
+              id="lit-desc-${i}"
+              rows="2"
+              style="
+                width: 100%;
+                border: 1px solid ${LITERACY_BORDER[i]};
+                border-radius: 7px;
+                padding: 7px 10px;
+                font-size: 12px;
+                color: var(--text2);
+                background: white;
+                resize: vertical;
+                outline: none;
+                font-family: inherit;
+                line-height: 1.5;
+                box-sizing: border-box;
+              "
+            >${LITERACY_DESC[i] || ""}</textarea>
+          </div>
+        `,
+        ).join("");
+      }
+
+      function saveLiteracyLevels() {
+        for (let i = 0; i < LITERACY.length; i++) {
+          const nameEl = document.getElementById("lit-name-" + i);
+          const descEl = document.getElementById("lit-desc-" + i);
+          if (nameEl) LITERACY[i] = nameEl.value.trim() || LITERACY[i];
+          if (descEl) LITERACY_DESC[i] = descEl.value.trim();
+        }
+        toast("Níveis de letramento atualizados!", "success");
       }
       function updateSyncStatus() {
         const dot = document.getElementById("syncDot");
@@ -3620,6 +3805,8 @@
         try {
           const { initializeApp, getApps } = window.FirebaseApp;
           const { getFirestore, doc, onSnapshot } = window.FirebaseFirestore;
+          // IMPORTANTE: Trazendo as funções de Auth para dentro do init
+          const { getAuth, signInAnonymously } = window.FirebaseAuth;
 
           const existing = getApps().find(
             (a) => a.options.projectId === settings.projectId,
@@ -3637,46 +3824,69 @@
 
           fbDb = getFirestore(fbApp);
 
-          if (fbUnsubscribe) {
-            fbUnsubscribe();
-            fbUnsubscribe = null;
-          }
+          // === CORREÇÃO DO ERRO ===
+          // 1. Obtém o serviço de autenticação
+          const auth = getAuth(fbApp);
 
-          const docRef = doc(fbDb, "pet_saude", "dados");
-          fbUnsubscribe = onSnapshot(
-            docRef,
-            (snap) => {
-              // Ignora disparo causado pela própria escrita local
-              if (fbLocalWrite) return;
+          // 2. Faz o login invisível e ESPERA o resultado (.then)
+          signInAnonymously(auth)
+            .then(() => {
+              console.log(
+                "Autenticação anônima garantida. Iniciando leitura...",
+              );
 
-              if (!snap.exists()) return;
-              const remote = snap.data();
-              if (!remote || !remote.users) return;
-
-              // Só atualiza se realmente veio dado diferente de outro dispositivo
-              if (JSON.stringify(remote) !== JSON.stringify(db)) {
-                db = remote;
-                WORKSHOPS = (db.workshops || []).filter((w) => !w.deletedAt);
-                localStorage.setItem("pet_saude_db", JSON.stringify(db));
-                navigate(currentPage, detailClassId);
-                const timeEl = document.getElementById("syncTime");
-                if (timeEl)
-                  timeEl.textContent =
-                    "Sync: " +
-                    new Date().toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
+              if (fbUnsubscribe) {
+                fbUnsubscribe();
+                fbUnsubscribe = null;
               }
-            },
-            (err) => {
-              console.warn("Firebase listener erro:", err);
-              document.getElementById("syncDot").className = "dot error";
-              document.getElementById("syncText").textContent = "Erro Firebase";
-            },
-          );
 
-          updateSyncStatus();
+              const docRef = doc(fbDb, "pet_saude", "dados");
+
+              // 3. Só agora, com permissão concedida, iniciamos o onSnapshot
+              fbUnsubscribe = onSnapshot(
+                docRef,
+                (snap) => {
+                  // Ignora disparo causado pela própria escrita local
+                  if (fbLocalWrite) return;
+
+                  if (!snap.exists()) return;
+                  const remote = snap.data();
+                  if (!remote || !remote.users) return;
+
+                  // Só atualiza se realmente veio dado diferente de outro dispositivo
+                  if (JSON.stringify(remote) !== JSON.stringify(db)) {
+                    db = remote;
+                    WORKSHOPS = (db.workshops || []).filter(
+                      (w) => !w.deletedAt,
+                    );
+                    localStorage.setItem("pet_saude_db", JSON.stringify(db));
+                    navigate(currentPage, detailClassId);
+                    const timeEl = document.getElementById("syncTime");
+                    if (timeEl)
+                      timeEl.textContent =
+                        "Sync: " +
+                        new Date().toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+                  }
+                },
+                (err) => {
+                  console.warn("Firebase listener erro:", err);
+                  document.getElementById("syncDot").className = "dot error";
+                  document.getElementById("syncText").textContent =
+                    "Erro Firebase";
+                },
+              );
+
+              updateSyncStatus();
+            })
+            .catch((authErro) => {
+              console.error("Falha ao criar sessão anônima:", authErro);
+              document.getElementById("syncDot").className = "dot error";
+              document.getElementById("syncText").textContent =
+                "Erro de Acesso";
+            });
         } catch (e) {
           console.error("Firebase init erro:", e);
         }
@@ -4831,6 +5041,15 @@
           },
         ).join("");
 
+        // Show description for initially selected level
+        const initI = LITERACY.indexOf(selectedLitLevel);
+        const initDesc = document.getElementById("usr-lit-desc");
+        if (initDesc && initI >= 0) {
+          initDesc.style.borderLeftColor = LITERACY_COLORS[initI];
+          initDesc.style.background = LITERACY_BG[initI];
+          initDesc.textContent = LITERACY_DESC[initI] || "";
+        }
+
         document.getElementById("usr-toggles").innerHTML = [
           [
             "hasCellphone",
@@ -4886,6 +5105,13 @@
           p.className =
             "pill" + (LITERACY[i] === level ? " active-" + key : "");
         });
+        const i = LITERACY.indexOf(level);
+        const desc = document.getElementById("usr-lit-desc");
+        if (desc && i >= 0) {
+          desc.style.borderLeftColor = LITERACY_COLORS[i];
+          desc.style.background = LITERACY_BG[i];
+          desc.textContent = LITERACY_DESC[i] || "";
+        }
       }
 
       function toggleUserClass(id, el) {
@@ -5110,6 +5336,18 @@
           const key = ["gray", "amber", "blue", "purple", "green"][i];
           p.className = "pill" + (LITERACY[i] === l ? " active-" + key : "");
         });
+        const i = LITERACY.indexOf(l);
+        const desc = document.getElementById("com-lit-desc");
+        if (desc) {
+          if (i >= 0 && l) {
+            desc.style.borderLeftColor = LITERACY_COLORS[i];
+            desc.style.background = LITERACY_BG[i];
+            desc.textContent = LITERACY_DESC[i] || "";
+            desc.style.display = "block";
+          } else {
+            desc.style.display = "none";
+          }
+        }
       }
 
       function saveComment() {
@@ -6127,17 +6365,65 @@
           .register("./sw.js")
           .then((reg) => {
             console.log("PWA: Service Worker registrado.", reg.scope);
+
+            // Verifica atualizações a cada vez que o app é aberto/retomado
+            reg.update();
+            document.addEventListener("visibilitychange", () => {
+              if (document.visibilityState === "visible") reg.update();
+            });
           })
           .catch((err) => {
             console.warn("PWA: Falha ao registrar SW:", err);
           });
+
+        // ── Recebe notificação do SW quando uma nova versão assumiu o controle ──
+        navigator.serviceWorker.addEventListener("message", (e) => {
+          if (e.data && e.data.type === "SW_UPDATED") {
+            showUpdateBanner();
+          }
+        });
+
+        // Também detecta quando o controller troca (navegadores mais antigos)
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          showUpdateBanner();
+        });
+
+        function showUpdateBanner() {
+          // Evita mostrar o banner duas vezes
+          if (document.getElementById("pwa-update-banner")) return;
+
+          const banner = document.createElement("div");
+          banner.id = "pwa-update-banner";
+          banner.style.cssText = `
+            position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+            background:#2563EB; color:#fff; padding:14px 20px; border-radius:14px;
+            font-size:13px; font-weight:600; z-index:99999;
+            box-shadow:0 4px 24px rgba(37,99,235,.45);
+            display:flex; align-items:center; gap:12px;
+            max-width:calc(100vw - 40px); white-space:nowrap;
+          `;
+          banner.innerHTML = `
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            <span>Nova versão disponível!</span>
+            <button onclick="window.location.reload()" style="
+              background:#fff; color:#2563EB; border:none; border-radius:8px;
+              padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer;
+            ">Atualizar</button>
+            <button onclick="this.closest('#pwa-update-banner').remove()" style="
+              background:transparent; color:rgba(255,255,255,.75); border:none;
+              font-size:18px; cursor:pointer; padding:0 2px; line-height:1;
+            ">✕</button>
+          `;
+          document.body.appendChild(banner);
+        }
 
         // Botão de instalação (aparece quando o navegador dispara o evento)
         let deferredPrompt = null;
         window.addEventListener("beforeinstallprompt", (e) => {
           e.preventDefault();
           deferredPrompt = e;
-          // Mostra um toast discreto convidando a instalar
           setTimeout(() => {
             const t = document.createElement("div");
             t.style.cssText = `position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
